@@ -3,7 +3,7 @@ name: Build Zygisk Module (ARM64 + ARM32)
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: # Allows manual triggering
+  workflow_dispatch:
 
 jobs:
   build:
@@ -23,39 +23,46 @@ jobs:
       - name: Clone Zygisk Module Template
         run: |
           git clone --recursive https://github.com/KernelSU/zygisk-module-template.git template
-          # Overwrite template's main.cpp with our StellarTweaks code
+          # Copy our fixed main.cpp into the template
           cp zygisk/main.cpp template/zygisk/main.cpp
 
-      - name: Configure Architectures (32-bit + 64-bit)
-        working-directory: template
-        run: |
-          # Force ndk-build to compile for BOTH arm64 and arm32
-          echo "APP_ABI := arm64-v8a armeabi-v7a" > jni/Application.mk
-          echo "APP_PLATFORM := android-24" >> jni/Application.mk
-          echo "APP_STL := c++_static" >> jni/Application.mk
-
-      - name: Build with ndk-build
+      - name: Build arm64-v8a (64-bit)
         working-directory: template
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
-          # Run the compilation
-          $ANDROID_NDK_HOME/ndk-build
+          mkdir -p build64 && cd build64
+          cmake .. \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-24 \
+            -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+
+      - name: Build armeabi-v7a (32-bit)
+        working-directory: template
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          mkdir -p build32 && cd build32
+          cmake .. \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=armeabi-v7a \
+            -DANDROID_PLATFORM=android-24 \
+            -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
 
       - name: Prepare Output Folders
         run: |
           mkdir -p output/zygisk
           
-          # Copy the 64-bit library
-          if [ -f template/libs/arm64-v8a/libzygisk_module.so ]; then
-            cp template/libs/arm64-v8a/libzygisk_module.so output/zygisk/arm64-v8a.so
-          fi
+          # Find and copy 64-bit .so
+          find template/build64 -name "*.so" -exec cp {} output/zygisk/arm64-v8a.so \;
           
-          # Copy the 32-bit library
-          if [ -f template/libs/armeabi-v7a/libzygisk_module.so ]; then
-            cp template/libs/armeabi-v7a/libzygisk_module.so output/zygisk/armeabi-v7a.so
-          fi
+          # Find and copy 32-bit .so
+          find template/build32 -name "*.so" -exec cp {} output/zygisk/armeabi-v7a.so \;
           
+          echo "Compiled libraries:"
           ls -la output/zygisk/
 
       - name: Upload Artifacts
