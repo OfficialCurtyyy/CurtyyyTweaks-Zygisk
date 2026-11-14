@@ -1,4 +1,4 @@
-name: Build Zygisk Module (ARM64 + ARM32)
+name: Build Zygisk Module
 
 on:
   push:
@@ -20,39 +20,31 @@ jobs:
           ndk-version: r26d
           add-to-path: true
 
-      - name: Clone Zygisk Module Template
+      - name: Clone Zygisk Headers
         run: |
-          git clone --recursive https://github.com/KernelSU/zygisk-module-template.git template
-          # Copy our fixed main.cpp into the template's zygisk folder
-          cp zygisk/main.cpp template/zygisk/main.cpp
+          git clone https://github.com/KernelSU/zygisk-module-template.git temp_template
+          # Copy only the zygisk header folder to our jni directory so main.cpp can find it
+          cp -r temp_template/zygisk jni/zygisk
 
-      - name: Build Libraries via Template Script
-        working-directory: template
+      - name: Build with ndk-build
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
-          # The official template includes a build.sh that handles both arm32 and arm64 automatically
-          chmod +x build.sh
-          ./build.sh
+          $ANDROID_NDK_HOME/ndk-build
 
-      - name: Prepare Output Folders
+      - name: Prepare Output
         run: |
           mkdir -p output/zygisk
+          # Copy 64-bit library
+          cp libs/arm64-v8a/libzygisk.so output/zygisk/arm64-v8a.so
+          # Copy 32-bit library
+          cp libs/armeabi-v7a/libzygisk.so output/zygisk/armeabi-v7a.so
           
-          # The template outputs to specific build directories. 
-          # We look for 'zygisk.so' which is the default output name.
-          
-          # Find and copy 64-bit .so
-          find template -path "*arm64-v8a*" -name "zygisk.so" -exec cp {} output/zygisk/arm64-v8a.so \;
-          
-          # Find and copy 32-bit .so
-          find template -path "*armeabi-v7a*" -name "zygisk.so" -exec cp {} output/zygisk/armeabi-v7a.so \;
-          
-          echo "Compiled libraries:"
-          ls -laR output/
+          echo "Build Successful!"
+          ls -la output/zygisk/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: zygisk-arm32-arm64-libraries
+          name: stellar-tweaks-zygisk-libs
           path: output/zygisk/
