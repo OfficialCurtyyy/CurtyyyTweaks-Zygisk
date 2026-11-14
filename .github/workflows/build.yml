@@ -20,27 +20,27 @@ jobs:
           ndk-version: r26d
           add-to-path: true
 
-      - name: Clone Zygisk Headers
+      - name: Get Zygisk Header
         run: |
-          git clone https://github.com/KernelSU/zygisk-module-template.git temp_template
-          # Copy only the zygisk header folder to our jni directory so main.cpp can find it
-          cp -r temp_template/zygisk jni/zygisk
+          # Download ONLY the header file directly from KernelSU repo
+          mkdir -p zygisk
+          curl -sL https://raw.githubusercontent.com/KernelSU/zygisk-module-template/master/zygisk/zygisk.hpp -o zygisk/zygisk.hpp
+          ls -la zygisk/
 
       - name: Build with ndk-build
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
-          $ANDROID_NDK_HOME/ndk-build
+          # Force ndk-build to use current directory as project root
+          $ANDROID_NDK_HOME/ndk-build NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=jni/Android.mk NDK_APPLICATION_MK=jni/Application.mk
 
       - name: Prepare Output
         run: |
           mkdir -p output/zygisk
-          # Copy 64-bit library
           cp libs/arm64-v8a/libzygisk.so output/zygisk/arm64-v8a.so
-          # Copy 32-bit library
           cp libs/armeabi-v7a/libzygisk.so output/zygisk/armeabi-v7a.so
           
-          echo "Build Successful!"
+          echo "✅ Build Successful! Files generated:"
           ls -la output/zygisk/
 
       - name: Upload Artifacts
