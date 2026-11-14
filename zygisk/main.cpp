@@ -1,9 +1,9 @@
-#include <cstdlib>
-#include <cstring>
+#include <jni.h>
 #include <string>
 #include <vector>
-#include <zygisk.hpp>
+#include <unistd.h>
 #include <sys/system_properties.h>
+#include "zygisk.hpp"
 
 using zygisk::Api;
 using zygisk::AppSpecializeArgs;
@@ -24,8 +24,11 @@ public:
     }
 
     void preAppSpecialize(AppSpecializeArgs *args) override {
+        if (!args || !args->nice_name) return;
+
         const char* raw_pkg = env->GetStringUTFChars(args->nice_name, nullptr);
         if (!raw_pkg) return;
+        
         std::string pkg(raw_pkg);
         env->ReleaseStringUTFChars(args->nice_name, raw_pkg);
 
@@ -37,52 +40,60 @@ public:
             }
         }
 
+        // If not a target game, unload module to save memory
         if (!is_target) {
             api->setOption(zygisk::DLCLOSE_MODULE_LIBRARY);
             return;
         }
 
-        // Read spoof profile from our config
+        // Connect to companion process to read spoof config
         int fd = api->connectCompanion();
-        char buffer[256] = {0};
-        read(fd, buffer, sizeof(buffer));
-        close(fd);
+        if (fd >= 0) {
+            char buffer[256] = {0};
+            ssize_t bytes = read(fd, buffer, sizeof(buffer) - 1);
+            close(fd);
 
-        std::string profile(buffer);
-        
-        // Spoof based on selected device profile
-        if (profile.find("ROG9") != std::string::npos) {
-            __system_property_set("ro.product.model", "ASUS_AI2401_A");
-            __system_property_set("ro.product.brand", "asus");
-            __system_property_set("ro.product.manufacturer", "ASUS");
-        } 
-        else if (profile.find("REDMAGIC11") != std::string::npos) {
-            __system_property_set("ro.product.model", "NX769J");
-            __system_property_set("ro.product.brand", "ZTE");
-            __system_property_set("ro.product.manufacturer", "nubia");
-        }
-        else if (profile.find("S26ULTRA") != std::string::npos) {
-            __system_property_set("ro.product.model", "SM-S948B");
-            __system_property_set("ro.product.brand", "samsung");
-            __system_property_set("ro.product.manufacturer", "samsung");
-        }
-        else if (profile.find("FOLD8") != std::string::npos) {
-            __system_property_set("ro.product.model", "SM-F966B");
-            __system_property_set("ro.product.brand", "samsung");
-            __system_property_set("ro.product.manufacturer", "samsung");
-        }
-        else {
-            // Default to RedMagic 10 Pro
-            __system_property_set("ro.product.model", "NX729J");
-            __system_property_set("ro.product.brand", "ZTE");
-            __system_property_set("ro.product.manufacturer", "nubia");
+            if (bytes > 0) {
+                std::string profile(buffer);
+                
+                // Spoof based on selected device profile
+                if (profile.find("ROG9") != std::string::npos) {
+                    __system_property_set("ro.product.model", "ASUS_AI2401_A");
+                    __system_property_set("ro.product.brand", "asus");
+                    __system_property_set("ro.product.manufacturer", "ASUS");
+                } 
+                else if (profile.find("REDMAGIC11") != std::string::npos) {
+                    __system_property_set("ro.product.model", "NX769J");
+                    __system_property_set("ro.product.brand", "ZTE");
+                    __system_property_set("ro.product.manufacturer", "nubia");
+                }
+                else if (profile.find("S26ULTRA") != std::string::npos) {
+                    __system_property_set("ro.product.model", "SM-S948B");
+                    __system_property_set("ro.product.brand", "samsung");
+                    __system_property_set("ro.product.manufacturer", "samsung");
+                }
+                else if (profile.find("FOLD8") != std::string::npos) {
+                    __system_property_set("ro.product.model", "SM-F966B");
+                    __system_property_set("ro.product.brand", "samsung");
+                    __system_property_set("ro.product.manufacturer", "samsung");
+                }
+                else {
+                    // Default to RedMagic 10 Pro
+                    __system_property_set("ro.product.model", "NX729J");
+                    __system_property_set("ro.product.brand", "ZTE");
+                    __system_property_set("ro.product.manufacturer", "nubia");
+                }
+            }
         }
     }
 
     void postAppSpecialize(const AppSpecializeArgs *args) override {}
+    
     void preServerSpecialize(ServerSpecializeArgs *args) override {
+        // Never inject into system_server
         api->setOption(zygisk::DLCLOSE_MODULE_LIBRARY);
     }
+    
     void postServerSpecialize(const ServerSpecializeArgs *args) override {}
 
 private:
