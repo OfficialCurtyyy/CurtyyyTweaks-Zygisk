@@ -1,0 +1,70 @@
+name: Build Zygisk Module
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26d
+          add-to-path: true
+
+      - name: Download Zygisk Header
+        run: |
+          mkdir -p zygisk
+          curl -fsSL https://raw.githubusercontent.com/KernelSU/zygisk-module-template/master/zygisk/zygisk.hpp -o zygisk/zygisk.hpp
+          if [ ! -f zygisk/zygisk.hpp ]; then
+            echo "::error::Failed to download zygisk.hpp"
+            exit 1
+          fi
+          echo "✅ zygisk.hpp downloaded successfully"
+
+      - name: Verify Source Files Exist
+        run: |
+          for f in jni/Android.mk jni/Application.mk zygisk/main.cpp; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Missing required file: $f"
+              exit 1
+            fi
+          done
+          echo "✅ All source files verified"
+
+      - name: Build with ndk-build
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          $ANDROID_NDK_HOME/ndk-build \
+            NDK_PROJECT_PATH=. \
+            APP_BUILD_SCRIPT=jni/Android.mk \
+            NDK_APPLICATION_MK=jni/Application.mk \
+            V=1
+          
+          if [ ! -f libs/arm64-v8a/libzygisk.so ] || [ ! -f libs/armeabi-v7a/libzygisk.so ]; then
+            echo "::error::Build completed but .so files not found"
+            ls -laR libs/ || true
+            exit 1
+          fi
+          echo "✅ Both architectures built successfully"
+
+      - name: Prepare Output
+        run: |
+          mkdir -p output/zygisk
+          cp libs/arm64-v8a/libzygisk.so output/zygisk/arm64-v8a.so
+          cp libs/armeabi-v7a/libzygisk.so output/zygisk/armeabi-v7a.so
+          ls -lh output/zygisk/
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: stellar-tweaks-zygisk-libs
+          path: output/zygisk/
