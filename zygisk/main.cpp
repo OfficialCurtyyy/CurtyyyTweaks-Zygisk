@@ -10,11 +10,19 @@ using zygisk::Api;
 using zygisk::AppSpecializeArgs;
 using zygisk::ServerSpecializeArgs;
 
-// Target Games List
+// Target Games List (Updated with your requests)
 const std::vector<std::string> TARGET_GAMES = {
-    "com.tencent.ig", "com.pubg.krmobile", "com.activision.callofduty.shooter",
-    "com.miHoYo.GenshinImpact", "com.miHoYo.hkrpg", "com.epicgames.fortnite",
-    "com.mobilelegends.mi", "com.supercell.brawlstars", "com.riotgames.league.wildrift, com.garena.game.codm, com.mobile.legends, com.roblox.client"
+    "com.tencent.ig", 
+    "com.pubg.krmobile", 
+    "com.activision.callofduty.shooter",
+    "com.miHoYo.GenshinImpact", 
+    "com.miHoYo.hkrpg", 
+    "com.epicgames.fortnite",
+    "com.mobilelegends.mi",      // Mobile Legends
+    "com.garena.game.codm",      // Call of Duty Mobile (Garena)
+    "com.roblox.client",         // Roblox
+    "com.supercell.brawlstars", 
+    "com.riotgames.league.wildrift"
 };
 
 class StellarTweaksModule : public zygisk::ModuleBase {
@@ -56,7 +64,6 @@ public:
         }
 
         // Apply Spoofs based on WebUI selection
-        // __system_property_set is valid here because we are inside the app's Zygote fork
         if (profile.find("ROG9") != std::string::npos) {
             __system_property_set("ro.product.model", "ASUS_AI2401_A");
             __system_property_set("ro.product.brand", "asus");
@@ -88,7 +95,6 @@ public:
     void postAppSpecialize(const AppSpecializeArgs *args) override {}
     
     void preServerSpecialize(ServerSpecializeArgs *args) override {
-        // Never inject into system_server
         api->setOption(zygisk::DLCLOSE_MODULE_LIBRARY);
     }
     void postServerSpecialize(const ServerSpecializeArgs *args) override {}
