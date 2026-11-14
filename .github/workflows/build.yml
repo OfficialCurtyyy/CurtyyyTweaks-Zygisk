@@ -23,47 +23,33 @@ jobs:
       - name: Clone Zygisk Module Template
         run: |
           git clone --recursive https://github.com/KernelSU/zygisk-module-template.git template
-          # Copy our fixed main.cpp into the template
+          # Copy our fixed main.cpp into the template's zygisk folder
           cp zygisk/main.cpp template/zygisk/main.cpp
 
-      - name: Build arm64-v8a (64-bit)
+      - name: Build Libraries via Template Script
         working-directory: template
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
-          mkdir -p build64 && cd build64
-          cmake .. \
-            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
-            -DANDROID_ABI=arm64-v8a \
-            -DANDROID_PLATFORM=android-24 \
-            -DCMAKE_BUILD_TYPE=Release
-          make -j$(nproc)
-
-      - name: Build armeabi-v7a (32-bit)
-        working-directory: template
-        env:
-          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-        run: |
-          mkdir -p build32 && cd build32
-          cmake .. \
-            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
-            -DANDROID_ABI=armeabi-v7a \
-            -DANDROID_PLATFORM=android-24 \
-            -DCMAKE_BUILD_TYPE=Release
-          make -j$(nproc)
+          # The official template includes a build.sh that handles both arm32 and arm64 automatically
+          chmod +x build.sh
+          ./build.sh
 
       - name: Prepare Output Folders
         run: |
           mkdir -p output/zygisk
           
+          # The template outputs to specific build directories. 
+          # We look for 'zygisk.so' which is the default output name.
+          
           # Find and copy 64-bit .so
-          find template/build64 -name "*.so" -exec cp {} output/zygisk/arm64-v8a.so \;
+          find template -path "*arm64-v8a*" -name "zygisk.so" -exec cp {} output/zygisk/arm64-v8a.so \;
           
           # Find and copy 32-bit .so
-          find template/build32 -name "*.so" -exec cp {} output/zygisk/armeabi-v7a.so \;
+          find template -path "*armeabi-v7a*" -name "zygisk.so" -exec cp {} output/zygisk/armeabi-v7a.so \;
           
           echo "Compiled libraries:"
-          ls -la output/zygisk/
+          ls -laR output/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
