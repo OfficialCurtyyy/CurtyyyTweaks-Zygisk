@@ -2,15 +2,14 @@
 #include <string>
 #include <vector>
 #include <sys/system_properties.h>
-#include <zygisk.hpp>
 #include <fstream>
 #include <sstream>
+#include "zygisk.hpp"
 
 using zygisk::Api;
 using zygisk::AppSpecializeArgs;
 using zygisk::ServerSpecializeArgs;
 
-// Target Games List (Updated with your requests)
 const std::vector<std::string> TARGET_GAMES = {
     "com.tencent.ig", 
     "com.pubg.krmobile", 
@@ -18,9 +17,10 @@ const std::vector<std::string> TARGET_GAMES = {
     "com.miHoYo.GenshinImpact", 
     "com.miHoYo.hkrpg", 
     "com.epicgames.fortnite",
-    "com.mobilelegends.mi",      // Mobile Legends
-    "com.garena.game.codm",      // Call of Duty Mobile (Garena)
-    "com.roblox.client",         // Roblox
+    "com.mobilelegends.mi",
+    "com.mobile.legends",      // Added Mobile Legends variant
+    "com.garena.game.codm",     // Added CODM
+    "com.roblox.client",        // Added Roblox
     "com.supercell.brawlstars", 
     "com.riotgames.league.wildrift"
 };
@@ -40,7 +40,6 @@ public:
         std::string pkg(raw_pkg);
         env->ReleaseStringUTFChars(args->nice_name, raw_pkg);
 
-        // Check if the launched app is in our target games list
         bool is_target = false;
         for (const auto& target : TARGET_GAMES) {
             if (pkg == target) {
@@ -49,13 +48,11 @@ public:
             }
         }
 
-        // If not a target game, unload module to save memory
         if (!is_target) {
             api->setOption(zygisk::DLCLOSE_MODULE_LIBRARY);
             return;
         }
 
-        // Read configuration file safely using standard C++ file I/O
         std::ifstream file("/data/adb/stellartweaks/config");
         std::string profile = "DEFAULT";
         if (file.is_open()) {
@@ -63,7 +60,6 @@ public:
             file.close();
         }
 
-        // Apply Spoofs based on WebUI selection
         if (profile.find("ROG9") != std::string::npos) {
             __system_property_set("ro.product.model", "ASUS_AI2401_A");
             __system_property_set("ro.product.brand", "asus");
@@ -85,7 +81,6 @@ public:
             __system_property_set("ro.product.manufacturer", "samsung");
         }
         else {
-            // Default fallback (RedMagic 10 Pro)
             __system_property_set("ro.product.model", "NX729J");
             __system_property_set("ro.product.brand", "ZTE");
             __system_property_set("ro.product.manufacturer", "nubia");
