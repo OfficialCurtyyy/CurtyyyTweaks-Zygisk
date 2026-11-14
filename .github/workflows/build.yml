@@ -2,69 +2,56 @@ name: Build Zygisk Module
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Android NDK
+      - name: Setup NDK
         uses: nttld/setup-ndk@v1
-        id: setup-ndk
+        id: ndk
         with:
           ndk-version: r26d
-          add-to-path: true
 
-      - name: Download Zygisk Header
-        run: |
-          mkdir -p zygisk
-          curl -fsSL https://raw.githubusercontent.com/KernelSU/zygisk-module-template/master/zygisk/zygisk.hpp -o zygisk/zygisk.hpp
-          if [ ! -f zygisk/zygisk.hpp ]; then
-            echo "::error::Failed to download zygisk.hpp"
-            exit 1
-          fi
-          echo "✅ zygisk.hpp downloaded successfully"
-
-      - name: Verify Source Files Exist
-        run: |
-          for f in jni/Android.mk jni/Application.mk zygisk/main.cpp; do
-            if [ ! -f "$f" ]; then
-              echo "::error::Missing required file: $f"
-              exit 1
-            fi
-          done
-          echo "✅ All source files verified"
-
-      - name: Build with ndk-build
+      - name: Diagnostics
         env:
-          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          NDK: ${{ steps.ndk.outputs.ndk-path }}
         run: |
-          $ANDROID_NDK_HOME/ndk-build \
-            NDK_PROJECT_PATH=. \
-            APP_BUILD_SCRIPT=jni/Android.mk \
-            NDK_APPLICATION_MK=jni/Application.mk \
-            V=1
-          
-          if [ ! -f libs/arm64-v8a/libzygisk.so ] || [ ! -f libs/armeabi-v7a/libzygisk.so ]; then
-            echo "::error::Build completed but .so files not found"
-            ls -laR libs/ || true
-            exit 1
-          fi
-          echo "✅ Both architectures built successfully"
+          echo "NDK path: $NDK"
+          ls "$NDK/toolchains/llvm/prebuilt/"
 
-      - name: Prepare Output
+      - name: Build arm64-v8a + armeabi-v7a
+        env:
+          NDK: ${{ steps.ndk.outputs.ndk-path }}
         run: |
-          mkdir -p output/zygisk
-          cp libs/arm64-v8a/libzygisk.so output/zygisk/arm64-v8a.so
-          cp libs/armeabi-v7a/libzygisk.so output/zygisk/armeabi-v7a.so
-          ls -lh output/zygisk/
+          set -e
+          TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          mkdir -p output
 
-      - name: Upload Artifacts
+          # 64-bit
+          "$TOOLCHAIN/aarch64-linux-android24-clang++" \
+            -shared -fPIC -O2 -std=c++17 -static-libstdc++ \
+            -Izygisk \
+            zygisk/main.cpp \
+            -o output/arm64-v8a.so
+
+          # 32-bit
+          "$TOOLCHAIN/armv7a-linux-androideabi24-clang++" \
+            -shared -fPIC -O2 -std=c++17 -static-libstdc++ \
+            -Izygisk \
+            zygisk/main.cpp \
+            -o output/armeabi-v7a.so
+
+          echo "✅ Build finished:"
+          ls -la output/
+
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: stellar-tweaks-zygisk-libs
-          path: output/zygisk/
+          name: stellar-tweaks-zygisk
+          path: output/
