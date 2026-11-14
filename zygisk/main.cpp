@@ -3,8 +3,6 @@
 #include <vector>
 #include <fstream>
 #include <sys/system_properties.h>
-
-// Use relative include that works with ndk-build LOCAL_C_INCLUDES
 #include "zygisk.hpp"
 
 using zygisk::Api;
@@ -34,19 +32,16 @@ public:
     }
 
     void preAppSpecialize(AppSpecializeArgs *args) override {
-        if (!args || !args->nice_name) return;
+        if (!args) return;
 
-        const char* raw_pkg = env->GetStringUTFChars(args->nice_name, nullptr);
+        const char *raw_pkg = env->GetStringUTFChars(args->nice_name, nullptr);
         if (!raw_pkg) return;
         std::string pkg(raw_pkg);
         env->ReleaseStringUTFChars(args->nice_name, raw_pkg);
 
         bool is_target = false;
-        for (const auto& target : TARGET_GAMES) {
-            if (pkg == target) {
-                is_target = true;
-                break;
-            }
+        for (const auto &t : TARGET_GAMES) {
+            if (pkg == t) { is_target = true; break; }
         }
 
         if (!is_target) {
@@ -54,39 +49,39 @@ public:
             return;
         }
 
-        // Read config file
         std::ifstream file("/data/adb/stellartweaks/config");
         std::string profile = "DEFAULT";
-        if (file.is_open()) {
-            std::getline(file, profile);
-            file.close();
-        }
-
-        // Apply device spoof
-        const char* model = "NX729J";
-        const char* brand = "ZTE";
-        const char* mfr   = "nubia";
+        if (file.is_open()) { std::getline(file, profile); file.close(); }
 
         if (profile.find("ROG9") != std::string::npos) {
-            model = "ASUS_AI2401_A"; brand = "asus"; mfr = "ASUS";
+            __system_property_set("ro.product.model", "ASUS_AI2401_A");
+            __system_property_set("ro.product.brand", "asus");
+            __system_property_set("ro.product.manufacturer", "ASUS");
         } else if (profile.find("REDMAGIC11") != std::string::npos) {
-            model = "NX769J"; brand = "ZTE"; mfr = "nubia";
+            __system_property_set("ro.product.model", "NX769J");
+            __system_property_set("ro.product.brand", "ZTE");
+            __system_property_set("ro.product.manufacturer", "nubia");
         } else if (profile.find("S26ULTRA") != std::string::npos) {
-            model = "SM-S948B"; brand = "samsung"; mfr = "samsung";
+            __system_property_set("ro.product.model", "SM-S948B");
+            __system_property_set("ro.product.brand", "samsung");
+            __system_property_set("ro.product.manufacturer", "samsung");
         } else if (profile.find("FOLD8") != std::string::npos) {
-            model = "SM-F966B"; brand = "samsung"; mfr = "samsung";
+            __system_property_set("ro.product.model", "SM-F966B");
+            __system_property_set("ro.product.brand", "samsung");
+            __system_property_set("ro.product.manufacturer", "samsung");
+        } else {
+            __system_property_set("ro.product.model", "NX729J");
+            __system_property_set("ro.product.brand", "ZTE");
+            __system_property_set("ro.product.manufacturer", "nubia");
         }
-
-        __system_property_set("ro.product.model", model);
-        __system_property_set("ro.product.brand", brand);
-        __system_property_set("ro.product.manufacturer", mfr);
     }
 
-    void postAppSpecialize(const AppSpecializeArgs *) override {}
-    void preServerSpecialize(ServerSpecializeArgs *) override {
+    void postAppSpecialize(const AppSpecializeArgs *args) override {}
+
+    void preServerSpecialize(ServerSpecializeArgs *args) override {
         api->setOption(zygisk::DLCLOSE_MODULE_LIBRARY);
     }
-    void postServerSpecialize(const ServerSpecializeArgs *) override {}
+    void postServerSpecialize(const ServerSpecializeArgs *args) override {}
 
 private:
     Api *api = nullptr;
